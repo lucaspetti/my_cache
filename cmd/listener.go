@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"my_cache/server"
+	"my_cache/cache"
 	"github.com/spf13/cobra"
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -17,7 +18,8 @@ var listenerCmd = &cobra.Command{
 	Short: "Start HTTP server",
 	Long: "Starts HTTP server",
 	Run: func(cmd *cobra.Command, args []string) {
-		server := server.NewServer()
+		redisClient := cache.NewRedisClient()
+		server      := server.NewServer(redisClient)
 
 		port := os.Getenv("PORT")
 		fmt.Println("Running on port", port)

@@ -12,9 +12,17 @@ import (
 
 type MyCacheServer struct {
 	http.Handler
+	RedisClient *redis.Client
 }
 
-func NewServer() *MyCacheServer {
+type ExpectedBody struct {
+	Key   string
+	Value string
+}
+
+type ErrorResponse struct{Error string}
+
+func NewServer(redisClient *redis.Client) *MyCacheServer {
 	server := new(MyCacheServer)
 
 	router := http.NewServeMux()
@@ -22,6 +30,7 @@ func NewServer() *MyCacheServer {
 	router.Handle("/set", http.HandlerFunc(server.setValueHandler))
 
 	server.Handler = router
+	server.RedisClient = redisClient
 	return server
 }
 
@@ -31,18 +40,16 @@ func (s *MyCacheServer) getValueHandler(w http.ResponseWriter, req *http.Request
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 	var ctx = context.Background()
-
-	rdb := redis.NewClient(&redis.Options{
-  		Addr:     "localhost:6379",
-  		Password: "",
-  		DB:       0,
-	})
+	rdb     := s.RedisClient
+	encoder := json.NewEncoder(w)
 
 	keys, ok := req.URL.Query()["key"]
 
 	if !ok || len(keys[0]) < 1 {
 			log.Println("Url Param 'key' is missing")
+			errResponse := ErrorResponse{"Param 'key' is missing"}
 			w.WriteHeader(http.StatusBadRequest)
+			encoder.Encode(errResponse)
 
 			return
 	}
@@ -50,19 +57,25 @@ func (s *MyCacheServer) getValueHandler(w http.ResponseWriter, req *http.Request
 	key := keys[0]
 	value, err := rdb.Get(ctx, key).Result()
 
-	if err == redis.Nil {
-		value = "Err: Key Not Found"
-		w.WriteHeader(http.StatusNotFound)
+	if err != nil {
+		var errorMessage string
+
+		if err == redis.Nil {
+			errorMessage = "Key Not Found"
+		  w.WriteHeader(http.StatusNotFound)
+			} else {
+			errorMessage = "Error fetching value"
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		errorResponse := ErrorResponse{errorMessage}
+		encoder.Encode(errorResponse)
+		return
 	}
 
-	json.NewEncoder(w).Encode(value)
+	response := ExpectedBody{key, value}
+	encoder.Encode(response)
 }
-
-type ExpectedBody struct {
-	Key   string
-	Value string
-}
-
 
 func (s *MyCacheServer) setValueHandler(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
@@ -76,24 +89,28 @@ func (s *MyCacheServer) setValueHandler(w http.ResponseWriter, req *http.Request
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 	var ctx = context.Background()
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
-	})
+	rdb     := s.RedisClient
+	encoder := json.NewEncoder(w)
 
 	var b ExpectedBody
 
 	err := json.NewDecoder(req.Body).Decode(&b)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println("Err: ", err)
 		return
 	}
 
-	err = rdb.Set(ctx, b.Key, b.Value, 10*time.Second).Err()
+	err = rdb.Set(ctx, b.Key, b.Value, 5*60*time.Second).Err()
 
 	if err != nil {
 		log.Fatal(err)
+		errorResponse := ErrorResponse{"Error fetching value"}
+		w.WriteHeader(http.StatusBadRequest)
+		encoder.Encode(errorResponse)
+
+		return
 	}
+
+	encoder.Encode(b)
 }
