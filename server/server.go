@@ -16,11 +16,13 @@ type MyCacheServer struct {
 }
 
 type ExpectedBody struct {
-	Key   string
-	Value string
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
-type ErrorResponse struct{Error string}
+type ErrorResponse struct{
+	Error string `json:"error"`
+}
 
 func NewServer(redisClient *redis.Client) *MyCacheServer {
 	server := new(MyCacheServer)
