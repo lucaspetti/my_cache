@@ -20,7 +20,6 @@ function App() {
 
   async function getValue(key) {
     const endpoint = `${baseUrl}/get?key=${key}`
-    console.log(endpoint)
     const response = await fetch(endpoint, {})
     const result = await response.json()
 
@@ -33,8 +32,6 @@ function App() {
     const body = JSON.stringify({ key, value })
     const response = await fetch(endpoint, { method: 'POST', body })
     const result = await response.json()
-
-    console.log(result)
   }
 
   const handleGetSubmit = (event) => {
@@ -77,6 +74,7 @@ function App() {
             <input type="submit" value="Submit" />
           </form>
           <h3>Value: {displayValue()} </h3>
+          <button onClick={() => { navigator.clipboard.writeText(value)} } >Copy</button>
 
           <h2>Set Value</h2>
           <form onSubmit={handleSetSubmit}>
